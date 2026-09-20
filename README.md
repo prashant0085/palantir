@@ -127,6 +127,7 @@ While browsing pods, you don't need to open the action menu for common tasks:
 
 - Replace the illustrative animated SVG with a recorded terminal demo, similar to the demo used by [`kube-ps1`](https://github.com/jonmosco/kube-ps1).
 - App/label-based grouping instead of resource-type browsing — developers think "my service `checkout`", not "list all deployments then all pods then match them up." Let them fuzzy-search by app/label name across pods+deployments+services+ingress at once and show everything related to that app on one screen. This is a bigger navigation-model change than the items below and needs its own design pass.
+- Rewrite in Go — a single compiled binary with a real TUI library (e.g. `bubbletea`) instead of shelling out to `fzf`/`kubectl` per keystroke, for faster rendering and easier distribution (no bash/fzf/jq dependency).
 
 Done:
 
