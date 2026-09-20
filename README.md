@@ -42,6 +42,12 @@ Install the latest version into `~/.local/bin` without `sudo`:
 curl -fsSL https://raw.githubusercontent.com/prashant0085/palantir/main/install.sh | bash
 ```
 
+To install into a custom location instead (e.g. `~/scripts`), set `PALANTIR_INSTALL_DIR`:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/prashant0085/palantir/main/install.sh | PALANTIR_INSTALL_DIR=~/scripts bash
+```
+
 Then run:
 
 ```bash
