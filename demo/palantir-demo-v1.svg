@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="700" viewBox="0 0 900 700" role="img" aria-label="Animated palantir terminal demo">
+  <style>
+    .terminal { fill: #0d1117; }
+    .bar { fill: #161b22; }
+    .title { fill: #8b949e; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    .text { fill: #c9d1d9; font: 15px ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .muted { fill: #8b949e; }
+    .cyan { fill: #58a6ff; }
+    .green { fill: #3fb950; }
+    .yellow { fill: #d29922; }
+    .magenta { fill: #bc8cff; }
+    .line { opacity: 0; animation: appear 0.35s ease-out forwards; }
+    .l1 { animation-delay: .5s; }
+    .l2 { animation-delay: 1.0s; }
+    .l3 { animation-delay: 1.5s; }
+    .l4 { animation-delay: 2.0s; }
+    .l5 { animation-delay: 2.5s; }
+    .l6 { animation-delay: 3.0s; }
+    .l7 { animation-delay: 3.5s; }
+    .l8 { animation-delay: 4.0s; }
+    .l9 { animation-delay: 4.5s; }
+    .l10 { animation-delay: 5.0s; }
+    @keyframes appear {
+      to { opacity: 1; }
+    }
+    .dot { fill: #f85149; }
+    .dot2 { fill: #d29922; }
+    .dot3 { fill: #3fb950; }
+  </style>
+
+  <rect class="terminal" width="900" height="700" rx="10"/>
+  <rect class="bar" width="900" height="36" rx="10"/>
+  <circle class="dot" cx="24" cy="18" r="6"/>
+  <circle class="dot2" cx="46" cy="18" r="6"/>
+  <circle class="dot3" cx="68" cy="18" r="6"/>
+  <text class="title" x="450" y="23" text-anchor="middle">palantir</text>
+
+  <text class="text l1 line" x="24" y="70">$ palantir</text>
+
+  <text class="text l2 line" x="24" y="105" font-weight="bold">Select kube-context (esc to quit)</text>
+  <text class="text l2 line cyan" x="24" y="130">&gt; ke-prod-cluster</text>
+  <text class="muted l2 line" x="24" y="155">  ke-dev-cluster</text>
+  <text class="muted l2 line" x="24" y="180">  in-prod-cluster</text>
+  <text class="muted l2 line" x="24" y="205">  mx-prod-cluster</text>
+
+  <text class="text l4 line" x="24" y="250" font-weight="bold">[ke-prod-cluster] Select namespace</text>
+  <text class="muted l4 line" x="24" y="275">  __back__</text>
+  <text class="text l4 line cyan" x="24" y="300">&gt; checkout</text>
+  <text class="muted l4 line" x="24" y="325">  payments</text>
+  <text class="muted l4 line" x="24" y="350">  kube-system</text>
+
+  <text class="text l6 line" x="24" y="395" font-weight="bold">[ke-prod-cluster/checkout] Select resource type</text>
+  <text class="muted l6 line" x="24" y="420">  __back__</text>
+  <text class="text l6 line cyan" x="24" y="445">&gt; pods</text>
+  <text class="muted l6 line" x="24" y="470">  deployments</text>
+  <text class="muted l6 line" x="24" y="495">  services</text>
+
+  <text class="text l8 line" x="24" y="540" font-weight="bold">[ke-prod-cluster/checkout/pods] Select resource</text>
+  <text class="muted l8 line" x="24" y="565">  __back__</text>
+  <text class="text l8 line cyan" x="24" y="590">&gt; checkout-7f9c8d-x4k2p</text>
+  <text class="muted l8 line" x="24" y="615">  checkout-7f9c8d-b7n1q</text>
+
+  <text class="text l10 line yellow" x="450" y="590">CrashLoopBackOff</text>
+  <text class="muted l10 line" x="450" y="615">restarts: 6, last exit 137 (OOMKilled)</text>
+  <text class="magenta l10 line" x="450" y="645">preview: kubectl describe pod ...</text>
+</svg>

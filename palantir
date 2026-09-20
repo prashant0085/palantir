@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# palantir - k9s-style fzf navigator: context -> namespace -> resource type -> resource -> actions
+set -uo pipefail
+
+BACK="__back__"
+
+fzf_pick() {
+	# $1 = prompt/header, rest read from stdin
+	fzf --height=90% --layout=reverse --border --header="$1" \
+		--prompt="> " --bind='esc:abort'
+}
+
+pick_context() {
+	kubectl config get-contexts -o name | sort | fzf_pick "Select kube-context (esc to quit)"
+}
+
+pick_namespace() {
+	local ctx="$1"
+	{ printf '%s\n' "$BACK"; kubectl --context "$ctx" get ns -o name | sed 's#^namespace/##' | sort; } \
+		| fzf_pick "[$ctx] Select namespace ($BACK = choose another context)"
+}
+
+RESOURCE_TYPES=(pods deployments services secrets configmaps ingress statefulsets daemonsets jobs cronjobs replicasets events pvc hpa nodes)
+
+pick_resource_type() {
+	local ctx="$1" ns="$2"
+	{ printf '%s\n' "$BACK"; printf '%s\n' "${RESOURCE_TYPES[@]}"; } \
+		| fzf_pick "[$ctx/$ns] Select resource type ($BACK = choose another namespace)"
+}
+
+pick_resource() {
+	local ctx="$1" ns="$2" type="$3"
+	local list
+	if [[ "$type" == "nodes" ]]; then
+		list=$(kubectl --context "$ctx" get "$type" -o name)
+	else
+		list=$(kubectl --context "$ctx" -n "$ns" get "$type" -o name)
+	fi
+	{ printf '%s\n' "$BACK"; printf '%s\n' "$list"; } \
+		| fzf_pick "[$ctx/$ns/$type] Select resource ($BACK = choose another type)" \
+			--preview "kubectl --context $ctx -n $ns describe {} 2>/dev/null" \
+			--preview-window=right:60%:wrap
+}
+
+pick_action() {
+	local ctx="$1" ns="$2" type="$3" name="$4"
+	local actions=(describe get-yaml)
+	if [[ "$type" == "pods" ]]; then
+		actions+=(logs logs-previous logs-follow exec-sh delete)
+	else
+		actions+=(delete)
+	fi
+	{ printf '%s\n' "$BACK"; printf '%s\n' "${actions[@]}"; } \
+		| fzf_pick "[$ctx/$ns] $name -> select action"
+}
+
+run_action() {
+	local ctx="$1" ns="$2" type="$3" fullname="$4" action="$5"
+	local name="${fullname#*/}"
+	case "$action" in
+	describe)
+		kubectl --context "$ctx" -n "$ns" describe "$type" "$name" | less
+		;;
+	get-yaml)
+		kubectl --context "$ctx" -n "$ns" get "$type" "$name" -o yaml | less
+		;;
+	logs)
+		kubectl --context "$ctx" -n "$ns" logs "$name" | less
+		;;
+	logs-previous)
+		kubectl --context "$ctx" -n "$ns" logs "$name" -p | less
+		;;
+	logs-follow)
+		kubectl --context "$ctx" -n "$ns" logs -f "$name"
+		;;
+	exec-sh)
+		kubectl --context "$ctx" -n "$ns" exec -it "$name" -- sh
+		;;
+	delete)
+		echo "Delete $type/$name in $ns ($ctx)? [y/N]"
+		read -r confirm
+		[[ "$confirm" == "y" ]] && kubectl --context "$ctx" -n "$ns" delete "$type" "$name"
+		;;
+	esac
+}
+
+main() {
+	while true; do
+		ctx=$(pick_context) || exit 0
+		[[ -z "$ctx" ]] && exit 0
+
+		while true; do
+			ns=$(pick_namespace "$ctx") || break
+			[[ -z "$ns" || "$ns" == "$BACK" ]] && break
+
+			while true; do
+				type=$(pick_resource_type "$ctx" "$ns") || break
+				[[ -z "$type" || "$type" == "$BACK" ]] && break
+
+				while true; do
+					resource=$(pick_resource "$ctx" "$ns" "$type") || break
+					[[ -z "$resource" || "$resource" == "$BACK" ]] && break
+					resource="${resource#*/}"
+
+					while true; do
+						action=$(pick_action "$ctx" "$ns" "$type" "$resource") || break
+						[[ -z "$action" || "$action" == "$BACK" ]] && break
+						run_action "$ctx" "$ns" "$type" "$resource" "$action"
+					done
+				done
+			done
+		done
+	done
+}
+
+main
