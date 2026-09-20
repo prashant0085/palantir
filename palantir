@@ -3,20 +3,73 @@
 set -uo pipefail
 
 BACK="__back__"
+DANGEROUS=0
+[[ "${1:-}" == "--dangerous" ]] && DANGEROUS=1
+
+STATE_DIR="$HOME/.config/palantir"
+STATE_FILE="$STATE_DIR/last"
+CACHE_DIR="${TMPDIR:-/tmp}/palantir-cache-$$"
+CACHE_TTL=8
+mkdir -p "$STATE_DIR" "$CACHE_DIR"
+trap 'rm -rf "$CACHE_DIR"' EXIT
+
+preview_window() {
+	# Go relative-below on narrow terminals, relative-right on wide ones.
+	if [[ "${COLUMNS:-$(tput cols 2>/dev/null || echo 100)}" -lt 100 ]]; then
+		echo "down:50%:wrap"
+	else
+		echo "right:55%:wrap"
+	fi
+}
 
 fzf_pick() {
-	# $1 = prompt/header, rest read from stdin
-	fzf --height=90% --layout=reverse --border --header="$1" \
-		--prompt="> " --bind='esc:abort'
+	local header="$1"
+	shift
+	fzf --height=90% --layout=reverse --border --header="$header" \
+		--prompt="> " --bind='esc:abort' "$@"
+}
+
+save_last() {
+	printf '%s\t%s\n' "$1" "$2" >"$STATE_FILE"
+}
+
+load_last() {
+	[[ -f "$STATE_FILE" ]] && cat "$STATE_FILE"
+}
+
+# cache_get <cache-key> <command...> - prints cached stdout if fresh, else runs and caches
+cache_get() {
+	local key="$1"
+	shift
+	local file="$CACHE_DIR/${key//[^a-zA-Z0-9_]/_}"
+	if [[ -f "$file" ]]; then
+		local age=$(( $(date +%s) - $(stat -f %m "$file" 2>/dev/null || stat -c %Y "$file") ))
+		if (( age < CACHE_TTL )); then
+			cat "$file"
+			return
+		fi
+	fi
+	"$@" >"$file"
+	cat "$file"
 }
 
 pick_context() {
-	kubectl config get-contexts -o name | sort | fzf_pick "Select kube-context (esc to quit)"
+	local last
+	last=$(load_last | cut -f1)
+	{ [[ -n "$last" ]] && printf '%s\n' "$last"; kubectl config get-contexts -o name | sort; } \
+		| awk '!seen[$0]++' \
+		| fzf_pick "Select kube-context (esc to quit)"
 }
 
 pick_namespace() {
 	local ctx="$1"
-	{ printf '%s\n' "$BACK"; kubectl --context "$ctx" get ns -o name | sed 's#^namespace/##' | sort; } \
+	local last_ns=""
+	[[ "$(load_last | cut -f1)" == "$ctx" ]] && last_ns=$(load_last | cut -f2)
+	{
+		printf '%s\n' "$BACK"
+		[[ -n "$last_ns" ]] && printf '%s\n' "$last_ns"
+		cache_get "ns-$ctx" kubectl --context "$ctx" get ns -o name | sed 's#^namespace/##' | sort
+	} | awk '!seen[$0]++' \
 		| fzf_pick "[$ctx] Select namespace ($BACK = choose another context)"
 }
 
@@ -28,30 +81,102 @@ pick_resource_type() {
 		| fzf_pick "[$ctx/$ns] Select resource type ($BACK = choose another namespace)"
 }
 
+resource_preview_cmd() {
+	local ctx="$1" ns="$2" type="$3"
+	case "$type" in
+	secrets)
+		echo "kubectl --context $ctx -n $ns get {1} -o json 2>/dev/null | jq -r '.data // {} | to_entries[] | \"\\(.key):\\n\\(.value | @base64d)\\n\"'"
+		;;
+	configmaps)
+		echo "kubectl --context $ctx -n $ns get {1} -o json 2>/dev/null | jq -r '.data // {}'"
+		;;
+	*)
+		echo "kubectl --context $ctx -n $ns describe {} 2>/dev/null"
+		;;
+	esac
+}
+
 pick_resource() {
 	local ctx="$1" ns="$2" type="$3"
 	local list
 	if [[ "$type" == "nodes" ]]; then
-		list=$(kubectl --context "$ctx" get "$type" -o name)
+		list=$(cache_get "res-$ctx-$type" kubectl --context "$ctx" get "$type" -o name)
 	else
-		list=$(kubectl --context "$ctx" -n "$ns" get "$type" -o name)
+		list=$(cache_get "res-$ctx-$ns-$type" kubectl --context "$ctx" -n "$ns" get "$type" -o name)
 	fi
+
+	local extra_binds=()
+	if [[ "$type" == "pods" ]]; then
+		export -f diagnose_pod portforward_pod
+		export SHELL=bash
+		extra_binds=(
+			--bind "l:execute(kubectl --context $ctx -n $ns logs -f \$(echo {} | cut -d/ -f2))"
+			--bind "r:execute(kubectl --context $ctx -n $ns delete pod \$(echo {} | cut -d/ -f2); sleep 1)"
+			--bind "s:execute(kubectl --context $ctx -n $ns exec -it \$(echo {} | cut -d/ -f2) -- sh)"
+			--bind "p:execute(bash -c 'portforward_pod $ctx $ns \$(echo {} | cut -d/ -f2)')"
+			--bind "d:execute(bash -c 'diagnose_pod $ctx $ns \$(echo {} | cut -d/ -f2) | less')"
+			--bind "y:execute-silent(echo -n {} | cut -d/ -f2 | pbcopy)"
+		)
+	fi
+
 	{ printf '%s\n' "$BACK"; printf '%s\n' "$list"; } \
-		| fzf_pick "[$ctx/$ns/$type] Select resource ($BACK = choose another type)" \
-			--preview "kubectl --context $ctx -n $ns describe {} 2>/dev/null" \
-			--preview-window=right:60%:wrap
+		| fzf_pick "[$ctx/$ns/$type] Select resource ($BACK = back | l=logs r=restart s=shell p=port-fwd d=diagnose y=copy-name)" \
+			--preview "$(resource_preview_cmd "$ctx" "$ns" "$type")" \
+			--preview-window="$(preview_window)" \
+			"${extra_binds[@]}"
 }
 
 pick_action() {
 	local ctx="$1" ns="$2" type="$3" name="$4"
-	local actions=(describe get-yaml)
+	local actions=(describe get-yaml copy-name)
 	if [[ "$type" == "pods" ]]; then
-		actions+=(logs logs-previous logs-follow exec-sh delete)
-	else
+		actions+=(diagnose logs logs-previous logs-follow exec-sh port-forward)
+	fi
+	if [[ "$DANGEROUS" -eq 1 ]]; then
 		actions+=(delete)
 	fi
 	{ printf '%s\n' "$BACK"; printf '%s\n' "${actions[@]}"; } \
 		| fzf_pick "[$ctx/$ns] $name -> select action"
+}
+
+diagnose_pod() {
+	local ctx="$1" ns="$2" name="$3"
+	local json
+	json=$(kubectl --context "$ctx" -n "$ns" get pod "$name" -o json 2>/dev/null)
+	if [[ -z "$json" ]]; then
+		echo "Could not fetch pod $name"
+		return
+	fi
+
+	echo "== $name =="
+	echo "$json" | jq -r '.status.containerStatuses[]? |
+		"container: \(.name)  restarts: \(.restartCount)" +
+		(if .state.waiting then "\n  state: waiting (\(.state.waiting.reason))\n  message: \(.state.waiting.message // "n/a")" else "" end) +
+		(if .state.terminated then "\n  state: terminated (\(.state.terminated.reason)) exit=\(.state.terminated.exitCode)" else "" end) +
+		(if .lastState.terminated then "\n  last exit: \(.lastState.terminated.exitCode) reason=\(.lastState.terminated.reason)" else "" end)'
+
+	local phase
+	phase=$(echo "$json" | jq -r '.status.phase')
+	echo "phase: $phase"
+
+	echo
+	echo "-- recent events --"
+	kubectl --context "$ctx" -n "$ns" get events --field-selector "involvedObject.name=$name" --sort-by='.lastTimestamp' 2>/dev/null | tail -n 10
+}
+
+portforward_pod() {
+	local ctx="$1" ns="$2" name="$3"
+	local remote_port
+	remote_port=$(kubectl --context "$ctx" -n "$ns" get pod "$name" -o jsonpath='{.spec.containers[0].ports[0].containerPort}' 2>/dev/null)
+	[[ -z "$remote_port" ]] && read -rp "Remote port to forward: " remote_port
+
+	local local_port=8000
+	while nc -z localhost "$local_port" 2>/dev/null; do
+		local_port=$((local_port + 1))
+	done
+
+	echo "Forwarding localhost:$local_port -> $name:$remote_port (Ctrl-C to stop)"
+	kubectl --context "$ctx" -n "$ns" port-forward "pod/$name" "$local_port:$remote_port"
 }
 
 run_action() {
@@ -63,6 +188,14 @@ run_action() {
 		;;
 	get-yaml)
 		kubectl --context "$ctx" -n "$ns" get "$type" "$name" -o yaml | less
+		;;
+	copy-name)
+		echo -n "$name" | pbcopy
+		echo "Copied '$name' to clipboard."
+		read -rp "Press enter to continue..." _
+		;;
+	diagnose)
+		diagnose_pod "$ctx" "$ns" "$name" | less
 		;;
 	logs)
 		kubectl --context "$ctx" -n "$ns" logs "$name" | less
@@ -76,10 +209,13 @@ run_action() {
 	exec-sh)
 		kubectl --context "$ctx" -n "$ns" exec -it "$name" -- sh
 		;;
+	port-forward)
+		portforward_pod "$ctx" "$ns" "$name"
+		;;
 	delete)
-		echo "Delete $type/$name in $ns ($ctx)? [y/N]"
+		echo "Delete $type/$name in $ns ($ctx)? Type the resource name to confirm:"
 		read -r confirm
-		[[ "$confirm" == "y" ]] && kubectl --context "$ctx" -n "$ns" delete "$type" "$name"
+		[[ "$confirm" == "$name" ]] && kubectl --context "$ctx" -n "$ns" delete "$type" "$name" || echo "Confirmation did not match, aborted."
 		;;
 	esac
 }
@@ -92,6 +228,7 @@ main() {
 		while true; do
 			ns=$(pick_namespace "$ctx") || break
 			[[ -z "$ns" || "$ns" == "$BACK" ]] && break
+			save_last "$ctx" "$ns"
 
 			while true; do
 				type=$(pick_resource_type "$ctx" "$ns") || break

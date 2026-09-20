@@ -38,27 +38,27 @@
   <text class="text l1 line" x="24" y="70">$ palantir</text>
 
   <text class="text l2 line" x="24" y="105" font-weight="bold">Select kube-context (esc to quit)</text>
-  <text class="text l2 line cyan" x="24" y="130">&gt; ke-prod-cluster</text>
-  <text class="muted l2 line" x="24" y="155">  ke-dev-cluster</text>
-  <text class="muted l2 line" x="24" y="180">  in-prod-cluster</text>
-  <text class="muted l2 line" x="24" y="205">  mx-prod-cluster</text>
+  <text class="text l2 line cyan" x="24" y="130">&gt; rivendell-prod-cluster</text>
+  <text class="muted l2 line" x="24" y="155">  rivendell-dev-cluster</text>
+  <text class="muted l2 line" x="24" y="180">  shire-prod-cluster</text>
+  <text class="muted l2 line" x="24" y="205">  gondor-prod-cluster</text>
 
-  <text class="text l4 line" x="24" y="250" font-weight="bold">[ke-prod-cluster] Select namespace</text>
+  <text class="text l4 line" x="24" y="250" font-weight="bold">[rivendell-prod-cluster] Select namespace</text>
   <text class="muted l4 line" x="24" y="275">  __back__</text>
-  <text class="text l4 line cyan" x="24" y="300">&gt; checkout</text>
-  <text class="muted l4 line" x="24" y="325">  payments</text>
+  <text class="text l4 line cyan" x="24" y="300">&gt; palantir-tower</text>
+  <text class="muted l4 line" x="24" y="325">  minas-tirith</text>
   <text class="muted l4 line" x="24" y="350">  kube-system</text>
 
-  <text class="text l6 line" x="24" y="395" font-weight="bold">[ke-prod-cluster/checkout] Select resource type</text>
+  <text class="text l6 line" x="24" y="395" font-weight="bold">[rivendell-prod-cluster/palantir-tower] Select resource type</text>
   <text class="muted l6 line" x="24" y="420">  __back__</text>
   <text class="text l6 line cyan" x="24" y="445">&gt; pods</text>
   <text class="muted l6 line" x="24" y="470">  deployments</text>
   <text class="muted l6 line" x="24" y="495">  services</text>
 
-  <text class="text l8 line" x="24" y="540" font-weight="bold">[ke-prod-cluster/checkout/pods] Select resource</text>
+  <text class="text l8 line" x="24" y="540" font-weight="bold">[rivendell-prod-cluster/palantir-tower/pods] Select resource</text>
   <text class="muted l8 line" x="24" y="565">  __back__</text>
-  <text class="text l8 line cyan" x="24" y="590">&gt; checkout-7f9c8d-x4k2p</text>
-  <text class="muted l8 line" x="24" y="615">  checkout-7f9c8d-b7n1q</text>
+  <text class="text l8 line cyan" x="24" y="590">&gt; palantir-tower-7f9c8d-x4k2p</text>
+  <text class="muted l8 line" x="24" y="615">  palantir-tower-7f9c8d-b7n1q</text>
 
   <text class="text l10 line yellow" x="450" y="590">CrashLoopBackOff</text>
   <text class="muted l10 line" x="450" y="615">restarts: 6, last exit 137 (OOMKilled)</text>
