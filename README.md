@@ -105,8 +105,25 @@ palantir
 ### TODO
 
 - Replace the illustrative animated SVG with a recorded terminal demo, similar to the demo used by [`kube-ps1`](https://github.com/jonmosco/kube-ps1).
-- Cache resource lists per level to reduce repeated `kubectl get` calls and speed up navigation.
-- Add app/label-based cross-resource search (e.g. jump straight to everything matching `app=checkout`).
+
+**High value, dev-facing:**
+
+- "Why is my pod broken?" mode — instead of a raw `describe`, detect `CrashLoopBackOff`/`ImagePullBackOff`/`Pending`/`OOMKilled` and print a plain-English diagnosis (last restart reason, exit code, relevant events) instead of dumping full YAML for the developer to parse themselves.
+- App/label-based grouping instead of resource-type browsing — developers think "my service `checkout`", not "list all deployments then all pods then match them up." Let them fuzzy-search by app/label name across pods+deployments+services+ingress at once and show everything related to that app on one screen.
+- One-key common actions — `l` for logs (auto `tail -f`), `r` for restart (`rollout restart`), `s` for shell exec, `p` for port-forward — without needing to know the underlying flags exist.
+- Port-forward shortcut — huge for developers debugging locally; k9s has this but it's buried. Surface it as a first-class action with an auto-picked local port.
+- Config/secret diff-friendly view — decode secrets and pretty-print configmaps by default (developers don't know the `-o jsonpath` base64-decode tricks).
+
+**Nice-to-have polish:**
+
+- Remember recent/favorite context+namespace combos to skip re-navigating every time.
+- Copy-to-clipboard for pod name / image / logs snippet (for pasting into Slack when asking DevOps for help).
+- Non-destructive by default — hide `delete`/`edit` unless a `--dangerous` flag is set or a typed-name confirmation step is completed, since this tool targets developers, not admins.
+
+**Speed and rendering:**
+
+- Cache resource lists per level for a few seconds to reduce repeated `kubectl get` calls and speed up navigation, instead of re-spawning a `kubectl get -o name` call and a `describe` preview subprocess on every screen and keystroke.
+- Size `--preview-window` relative to the terminal instead of a fixed percentage, to fix layout not scaling on some terminals.
 
 ## License
 
